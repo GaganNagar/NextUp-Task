@@ -1,261 +1,275 @@
-// Import necessary functions from Firebase SDKs
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- CONFIG & INITIALIZATION ---
 
-// These global variables are provided by the environment.
-// They connect the app to the correct Firebase project and user.
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-todo-app';
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+let appRoot = document.querySelector("#app-root");
 
-// App state variables
-let app, auth, db, userId;
-let tasks = [];
-let currentFilter = 'all';
-let unsubscribeFromTasks; // To hold the onSnapshot listener for real-time updates
+let container = document.createElement("div");
+container.classList.add("app-container");
 
-// --- DOM ELEMENTS ---
-const taskForm = document.getElementById('add-task-form');
-const taskInput = document.getElementById('task-input');
-const taskList = document.getElementById('task-list');
-const loadingState = document.getElementById('loading-state');
-const emptyState = document.getElementById('empty-state');
-const filterButtons = document.getElementById('filter-buttons');
-const clearCompletedBtn = document.getElementById('clear-completed-btn');
-const userIdDisplay = document.getElementById('user-id-display');
+let h1 = document.createElement("h1");
+h1.textContent = "NextUp List";
+h1.classList.add("main-heading");
 
-// --- FIREBASE SETUP & AUTHENTICATION ---
+let counterDiv = document.createElement("div");
+counterDiv.classList.add("counter-div")
 
-/**
- * Initializes the Firebase app and sets up authentication.
- */
-async function setupFirebase() {
-    try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
+let counterP = document.createElement("p");
+counterP.setAttribute("id", "active-task-counter");
+counterP.textContent = "Active Task : 0"
 
-        // Listen for changes in authentication state
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                userIdDisplay.textContent = userId;
-                // Once authenticated, start listening for tasks from Firestore
-                listenForTasks();
-            } else {
-                // If no user is signed in, attempt to sign in.
-                signInUser();
+let counterP1 = document.createElement("p");
+counterP1.setAttribute("id", "completed-task-counter");
+counterP1.textContent = "Completed Task : 0"
+
+
+
+let inputContainer = document.createElement("div");
+inputContainer.classList.add("input-area")
+
+let inputBox = document.createElement("input");
+inputBox.setAttribute("type", "text")
+inputBox.setAttribute("id", "input")
+inputBox.setAttribute("placeholder", "add new something... ")
+inputBox.classList.add("task-input")
+
+let addBtn = document.createElement("button");
+addBtn.textContent = "Add";
+addBtn.classList.add("add-btn");
+addBtn.setAttribute("id", "add-btn");
+
+let filterDiv = document.createElement("div");
+filterDiv.classList.add("filter-buttons");
+
+let all = document.createElement("button")
+all.classList.add("filter-btn")
+all.textContent = "All"
+
+let activeBtn = document.createElement("button")
+activeBtn.classList.add("filter-btn")
+activeBtn.textContent = "Active"
+
+let completedBtn = document.createElement("button");
+completedBtn.classList.add("filter-btn")
+completedBtn.textContent = "Completed"
+
+let clearTaskDiv = document.createElement("div")
+clearTaskDiv.classList.add("clear-task-div","hidden")
+
+
+let clearCompltedTask = document.createElement("button")
+clearCompltedTask.textContent = "Clear completed Task";
+clearCompltedTask.classList.add("clear-completed-btn","clear-btn");
+
+
+let clearAllTask = document.createElement("button")
+clearAllTask.textContent = "Clear All Task ";
+clearAllTask.classList.add("clear-all-btn","clear-btn");
+
+
+let ulList = document.createElement("ul")
+ulList.classList.add("task-list")
+ulList.setAttribute("id", "task-list")
+
+counterDiv.appendChild(counterP)
+counterDiv.appendChild(counterP1)
+
+inputContainer.appendChild(inputBox);
+inputContainer.appendChild(addBtn);
+
+filterDiv.appendChild(all);
+filterDiv.appendChild(activeBtn);
+filterDiv.appendChild(completedBtn);
+
+clearTaskDiv.appendChild(clearCompltedTask)
+clearTaskDiv.appendChild(clearAllTask)
+
+container.appendChild(h1);
+container.appendChild(counterDiv);
+container.appendChild(inputContainer);
+container.appendChild(filterDiv);
+container.appendChild(clearTaskDiv)
+container.appendChild(ulList);
+
+appRoot.appendChild(container)
+
+
+
+function addTask() {
+    const taskText = inputBox.value.trim();
+    if (taskText === "") {
+        alert("Please enter a task.");  /// agar user ne space enter ki hogi to  vo trim ho jygi mean "" ho jygi
+        return;
+    }
+    let li = document.createElement("li");
+    li.classList.add("task-item");
+
+    let taskSpan = document.createElement("span");
+    taskSpan.textContent = taskText;
+    taskSpan.classList.add("task-text")
+
+    let editInput = document.createElement("input")
+    editInput.type = ("text");
+    editInput.classList.add("edit-input", "hidden");
+
+    let deleteBtn = document.createElement("button")
+    deleteBtn.classList.add("delete-btn")
+    deleteBtn.textContent = "Delete";
+
+    li.appendChild(taskSpan);
+    li.appendChild(editInput)
+    li.appendChild(deleteBtn);
+    ulList.appendChild(li);
+
+    clearTaskDiv.classList.remove("hidden")
+
+    inputBox.value = "";
+    updateCounter();
+}
+
+function clearTasks(selector) {
+    const tasksToRemove = document.querySelectorAll(selector);
+    tasksToRemove.forEach(function(task) {
+        setTimeout(function() {
+            task.remove();
+            updateCounter();
+        }, 300);
+    });
+}
+
+
+addBtn.addEventListener("click", addTask);
+
+inputBox.addEventListener("keyup", function (event) {       //only for enter key press and call addTask()
+    if (event.key === "Enter") {
+        addTask();
+        updateCounter();
+
+    }
+
+})
+
+
+ulList.addEventListener("click", function (event) {
+    const clickedData = event.target;    // puri html element kyuki target kiya hamne ki click kaha hua 
+    if (clickedData.classList.contains("delete-btn")) {
+        const parentLi = clickedData.parentElement
+        parentLi.remove();
+        updateCounter();
+    }
+    else if (clickedData.classList.contains("task-text")) {    //clickedData =puri html jispe click hua isliye attribute se check kar rhe
+
+        const parentLi = clickedData.parentElement;
+        parentLi.classList.toggle("completed");
+        updateCounter();
+        //      Iska matlab hai: "Jab li par task-item aur completed dono classes hon, tab uske andar jo span hai, uspar line-through laga do.
+        //    matlab li k andr normal completed class nhi lgi but jb hm click krenge text par tb completed class lg jaygi to span ko target karengge jb lgegi"
+    }
+
+})
+
+ulList.addEventListener("dblclick", function (event) {
+    const clickedElement = event.target;
+    if (clickedElement.classList.contains("task-text")) {
+        const parentLi = clickedElement.parentElement;
+        const taskSpan = parentLi.querySelector(".task-text");
+        const editInput = parentLi.querySelector(".edit-input")
+
+        editInput.value = taskSpan.textContent;
+
+        taskSpan.classList.add("hidden");
+        editInput.classList.remove("hidden");
+
+        editInput.focus();
+    }
+})
+
+
+
+
+// Listener hai jo  Enter key press hone par edit save hoga
+ulList.addEventListener("keyup", function (event) {
+    // Check karein ki kya 'Enter' key dabi aur kya woh ek 'edit-input' field tha.
+    if (event.key === "Enter" && event.target.classList.contains("edit-input")) {
+        saveEdit(event.target);
+    }
+});
+
+// Listener jo input se bahar click karne par edit save karega
+ulList.addEventListener("focusout", function (event) {
+    if (event.target.classList.contains("edit-input")) {
+        saveEdit(event.target);
+    }
+});
+
+// Ek alag function jo edit save karne ka kaam karega
+function saveEdit(inputElement) {
+    const parentLi = inputElement.parentElement;
+    const taskSpan = parentLi.querySelector(".task-text");
+
+    // Span ka text input ki nayi value se update kiya
+    taskSpan.textContent = inputElement.value;
+
+    // Input ko hide karein aur Span ko wapas show kiya
+    inputElement.classList.add("hidden");
+    taskSpan.classList.remove("hidden");
+}
+
+const activeTaskCounterEle = document.querySelector("#active-task-counter");
+
+const completedTaskCounterEle = document.querySelector("#completed-task-counter");
+
+function updateCounter() {
+    const activeTask = document.querySelectorAll("li:not(.completed)");
+    const completedTask = document.querySelectorAll("li.completed");
+
+
+    const activeTaskCount = activeTask.length;
+    const completedTaskCount = completedTask.length;
+
+    activeTaskCounterEle.textContent = `Active Task : ${activeTaskCount}`
+    completedTaskCounterEle.textContent = `Completed Task : ${completedTaskCount}`
+}
+
+clearTaskDiv.addEventListener("click", function (event) {
+    const clickedEle = event.target;
+    if (clickedEle.classList.contains("clear-completed-btn")) {
+      clearTasks("li.completed");
+    }
+    else if (clickedEle.classList.contains("clear-all-btn")) {
+             clearTasks("li.task-item");
+    }
+       
+});
+
+
+filterDiv.addEventListener("click", function (event) {
+    const clickedFilter = event.target;
+
+
+    if (clickedFilter.tagName === "BUTTON") {
+
+
+        document.querySelectorAll(".filter-btn").forEach(function (btn) {
+            btn.classList.remove("active");
+        });
+
+
+        clickedFilter.classList.add("active");
+
+
+        const allTasks = document.querySelectorAll(".task-item");
+
+        allTasks.forEach(function (task) {
+            switch (clickedFilter.textContent) {
+                case "Active":
+                    task.style.display = task.classList.contains("completed") ? "none" : "flex";
+                    break;
+                case "Completed":
+                    task.style.display = task.classList.contains("completed") ? "flex" : "none";
+                    break;
+                default: // 
+                    task.style.display = "flex";
+                    break;
             }
         });
-    } catch (error) {
-        console.error("Firebase initialization failed:", error);
-        loadingState.textContent = "Error connecting to the service.";
-    }
-}
-
-/**
- * Signs the user in, either with a provided token or anonymously.
- */
-async function signInUser() {
-    try {
-        if (initialAuthToken) {
-            await signInWithCustomToken(auth, initialAuthToken);
-        } else {
-            await signInAnonymously(auth);
-        }
-    } catch (error) {
-        console.error("Authentication failed:", error);
-        loadingState.textContent = "Could not authenticate.";
-    }
-}
-
-// --- DATA HANDLING (FIRESTORE) ---
-
-/**
- * Gets a reference to the user's private task collection in Firestore.
- * @returns {import("firebase/firestore").CollectionReference} A reference to the collection.
- */
-function getTasksCollectionRef() {
-    // This path ensures data is stored privately for each user of this specific app instance.
-    return collection(db, `artifacts/${appId}/users/${userId}/tasks`);
-}
-
-/**
- * Sets up a real-time listener for tasks in Firestore.
- */
-function listenForTasks() {
-    if (unsubscribeFromTasks) {
-        unsubscribeFromTasks(); // Unsubscribe from any previous listener
-    }
-    const tasksCollection = getTasksCollectionRef();
-    unsubscribeFromTasks = onSnapshot(tasksCollection, (snapshot) => {
-        tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort tasks by creation time to keep them in a consistent order
-        tasks.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-        renderTasks(); // Re-render the list whenever data changes
-    }, (error) => {
-        console.error("Error listening to tasks:", error);
-        loadingState.textContent = "Error fetching tasks.";
-    });
-}
-
-/**
- * Adds a new task to Firestore.
- * @param {string} text - The content of the task.
- */
-async function addTask(text) {
-    if (!text.trim()) return; // Don't add empty tasks
-    try {
-        await addDoc(getTasksCollectionRef(), {
-            text: text,
-            completed: false,
-            createdAt: new Date() // Use server timestamp for consistency
-        });
-    } catch (error) {
-        console.error("Error adding task:", error);
-    }
-}
-
-/**
- * Toggles the 'completed' status of a task in Firestore.
- * @param {string} taskId - The ID of the task to update.
- * @param {boolean} currentStatus - The current 'completed' status of the task.
- */
-async function toggleTaskCompleted(taskId, currentStatus) {
-    const taskRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, taskId);
-    try {
-        await updateDoc(taskRef, {
-            completed: !currentStatus
-        });
-    } catch (error) {
-        console.error("Error updating task:", error);
-    }
-}
-
-/**
- * Deletes a task from Firestore.
- * @param {string} taskId - The ID of the task to delete.
- */
-async function deleteTask(taskId) {
-    const taskRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, taskId);
-    try {
-        await deleteDoc(taskRef);
-    } catch (error) {
-        console.error("Error deleting task:", error);
-    }
-}
-
-/**
- * Deletes all completed tasks from Firestore in a single batch operation.
- */
-async function clearCompletedTasks() {
-    const batch = writeBatch(db);
-    const completedTasks = tasks.filter(task => task.completed);
-    
-    if (completedTasks.length === 0) return;
-
-    completedTasks.forEach(task => {
-        const taskRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, task.id);
-        batch.delete(taskRef);
-    });
-
-    try {
-        await batch.commit();
-    } catch (error)
-    {
-        console.error("Error clearing completed tasks:", error);
-    }
-}
-
-// --- UI RENDERING ---
-
-/**
- * Renders the tasks to the DOM based on the current filter.
- */
-function renderTasks() {
-    taskList.innerHTML = '';
-    loadingState.classList.add('hidden');
-
-    const filteredTasks = tasks.filter(task => {
-        if (currentFilter === 'all') return true;
-        if (currentFilter === 'active') return !task.completed;
-        if (currentFilter === 'completed') return task.completed;
-        return true;
-    });
-
-    if (tasks.length === 0) {
-         emptyState.classList.remove('hidden');
-    } else {
-         emptyState.classList.add('hidden');
-    }
-
-    if (filteredTasks.length === 0 && tasks.length > 0) {
-        const noTasksMessage = document.createElement('p');
-        noTasksMessage.className = 'text-center text-gray-400 py-4';
-        noTasksMessage.textContent = `No ${currentFilter} tasks.`;
-        taskList.appendChild(noTasksMessage);
-    } else {
-         filteredTasks.forEach(task => {
-            const li = document.createElement('li');
-            li.className = 'task-item flex items-center justify-between bg-gray-700/50 p-3 rounded-lg';
-            li.dataset.id = task.id;
-
-            const textClass = task.completed ? 'completed-task' : 'text-white';
-
-            li.innerHTML = `
-                <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <input type="checkbox" ${task.completed ? 'checked' : ''} class="h-5 w-5 rounded border-gray-500 bg-gray-800 text-blue-600 focus:ring-blue-600 cursor-pointer flex-shrink-0">
-                    <span class="flex-1 ${textClass} truncate">${task.text}</span>
-                </div>
-                <button class="delete-btn text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            `;
-
-            // Add event listeners for checkbox and delete button
-            li.querySelector('input[type="checkbox"]').addEventListener('change', () => {
-                toggleTaskCompleted(task.id, task.completed);
-            });
-            li.querySelector('.delete-btn').addEventListener('click', () => {
-                deleteTask(task.id);
-            });
-
-            taskList.appendChild(li);
-        });
-    }
-}
-
-// --- EVENT LISTENERS ---
-
-// Handle new task submission
-taskForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    addTask(taskInput.value);
-    taskInput.value = '';
-});
-
-// Handle filter button clicks
-filterButtons.addEventListener('click', (e) => {
-    if (e.target.tagName === 'BUTTON') {
-        const filter = e.target.dataset.filter;
-        if (filter) {
-            currentFilter = filter;
-            // Update active button style
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            renderTasks();
-        }
     }
 });
-
-// Handle 'Clear Completed' button click
-clearCompletedBtn.addEventListener('click', clearCompletedTasks);
-
-// --- INITIALIZATION ---
-// Start the application once the DOM is fully loaded.
-document.addEventListener('DOMContentLoaded', setupFirebase);
